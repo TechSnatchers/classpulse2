@@ -1,0 +1,148 @@
+// Clustering service for handling clustering-related API calls
+
+export interface StudentCluster {
+  id: string;
+  name: string;
+  description: string;
+  studentCount: number;
+  engagementLevel: 'high' | 'medium' | 'low';
+  color: string;
+  prediction: 'stable' | 'improving' | 'declining';
+  students: string[]; // Student IDs
+}
+
+export interface ClusterUpdate {
+  sessionId: string;
+  quizPerformance?: {
+    questionId: string;
+    correctPercentage: number;
+  };
+}
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+
+export const clusteringService = {
+  // Get default clusters (fallback)
+  getDefaultClusters(): StudentCluster[] {
+    return [
+      {
+        id: '1',
+        name: 'Active Participants',
+        description: 'Highly engaged students',
+        studentCount: 18,
+        engagementLevel: 'high',
+        color: '#10b981',
+        prediction: 'stable',
+        students: [],
+      },
+      {
+        id: '2',
+        name: 'Moderate Participants',
+        description: 'Moderately engaged students',
+        studentCount: 10,
+        engagementLevel: 'medium',
+        color: '#f59e0b',
+        prediction: 'improving',
+        students: [],
+      },
+      {
+        id: '3',
+        name: 'At-Risk Students',
+        description: 'Low engagement, need support',
+        studentCount: 4,
+        engagementLevel: 'low',
+        color: '#ef4444',
+        prediction: 'declining',
+        students: [],
+      },
+    ];
+  },
+
+  // Get current clusters
+  async getClusters(sessionId: string): Promise<StudentCluster[]> {
+    if (!sessionId) {
+      console.warn('No sessionId provided, using default clusters');
+      return this.getDefaultClusters();
+    }
+
+    try {
+      const encodedSessionId = encodeURIComponent(sessionId);
+      const response = await fetch(`${API_BASE_URL}/clustering/session/${encodedSessionId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer mock-token', // Mock auth for development
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API Error:', response.status, errorText);
+        throw new Error(`Failed to get clusters: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error getting clusters:', error);
+      console.warn('Using fallback mock data - backend may not be running');
+      // Return default clusters on error
+      return this.getDefaultClusters();
+    }
+  },
+
+  // Update clusters based on quiz performance
+  async updateClusters(update: ClusterUpdate): Promise<StudentCluster[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/clustering/update`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer mock-token', // Mock auth for development
+        },
+        body: JSON.stringify(update),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API Error:', errorText);
+        throw new Error(`Failed to update clusters: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error updating clusters:', error);
+      console.warn('Using fallback - backend may not be running');
+      // Return current clusters if update fails
+      if (update.sessionId) {
+        return this.getClusters(update.sessionId);
+      }
+      return this.getDefaultClusters();
+    }
+  },
+
+  // Get student cluster assignment
+  async getStudentCluster(studentId: string, sessionId: string): Promise<string | null> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/clustering/student/${studentId}?sessionId=${sessionId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer mock-token', // Mock auth for development
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get student cluster');
+      }
+
+      const data = await response.json();
+      return data.clusterId;
+    } catch (error) {
+      console.error('Error getting student cluster:', error);
+      return null;
+    }
+  },
+};
+

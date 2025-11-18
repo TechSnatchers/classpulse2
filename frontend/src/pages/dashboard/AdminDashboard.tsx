@@ -1,0 +1,182 @@
+import React from 'react';
+import { useAuth } from '../../context/AuthContext';
+export const AdminDashboard = () => {
+  const {
+    user
+  } = useAuth();
+  return <div>
+      <h1 className="text-2xl font-semibold text-gray-900">Admin Dashboard</h1>
+      <p className="mt-1 text-sm text-gray-500">
+        Welcome back, {user?.firstName}! Here's an overview of the platform.
+      </p>
+      <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Total Users Card */}
+        <div className="bg-white overflow-hidden shadow rounded-lg">
+          <div className="p-5">
+            <div className="flex items-center">
+              <div className="flex-shrink-0 bg-indigo-500 rounded-md p-3">
+                {/* Icon would go here */}
+              </div>
+              <div className="ml-5 w-0 flex-1">
+                <dl>
+                  <dt className="text-sm font-medium text-gray-500 truncate">
+                    Total Users
+                  </dt>
+                  <dd>
+                    <div className="text-lg font-medium text-gray-900">
+                      1,248
+                    </div>
+                  </dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+          <div className="bg-gray-50 px-5 py-3">
+            <div className="text-sm">
+              <a href="#" className="font-medium text-indigo-700 hover:text-indigo-900">
+                View all
+              </a>
+            </div>
+          </div>
+        </div>
+        {/* Active Courses Card */}
+        <div className="bg-white overflow-hidden shadow rounded-lg">
+          <div className="p-5">
+            <div className="flex items-center">
+              <div className="flex-shrink-0 bg-green-500 rounded-md p-3">
+                {/* Icon would go here */}
+              </div>
+              <div className="ml-5 w-0 flex-1">
+                <dl>
+                  <dt className="text-sm font-medium text-gray-500 truncate">
+                    Active Courses
+                  </dt>
+                  <dd>
+                    <div className="text-lg font-medium text-gray-900">42</div>
+                  </dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+          <div className="bg-gray-50 px-5 py-3">
+            <div className="text-sm">
+              <a href="#" className="font-medium text-indigo-700 hover:text-indigo-900">
+                View all
+              </a>
+            </div>
+          </div>
+        </div>
+        {/* Active Instructors Card */}
+        <div className="bg-white overflow-hidden shadow rounded-lg">
+          <div className="p-5">
+            <div className="flex items-center">
+              <div className="flex-shrink-0 bg-blue-500 rounded-md p-3">
+                {/* Icon would go here */}
+              </div>
+              <div className="ml-5 w-0 flex-1">
+                <dl>
+                  <dt className="text-sm font-medium text-gray-500 truncate">
+                    Active Instructors
+                  </dt>
+                  <dd>
+                    <div className="text-lg font-medium text-gray-900">24</div>
+                  </dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+          <div className="bg-gray-50 px-5 py-3">
+            <div className="text-sm">
+              <a href="#" className="font-medium text-indigo-700 hover:text-indigo-900">
+                View all
+              </a>
+            </div>
+          </div>
+        </div>
+        {/* Live Sessions Today Card */}
+        <div className="bg-white overflow-hidden shadow rounded-lg">
+          <div className="p-5">
+            <div className="flex items-center">
+              <div className="flex-shrink-0 bg-red-500 rounded-md p-3">
+                {/* Icon would go here */}
+              </div>
+              <div className="ml-5 w-0 flex-1">
+                <dl>
+                  <dt className="text-sm font-medium text-gray-500 truncate">
+                    Live Sessions Today
+                  </dt>
+                  <dd>
+                    <div className="text-lg font-medium text-gray-900">8</div>
+                  </dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+          <div className="bg-gray-50 px-5 py-3">
+            <div className="text-sm">
+              <a href="#" className="font-medium text-indigo-700 hover:text-indigo-900">
+                View all
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="mt-8">
+        <h2 className="text-lg font-medium text-gray-900">
+          System Notifications
+        </h2>
+        <div className="mt-2 bg-white shadow overflow-hidden sm:rounded-md">
+          <ul className="divide-y divide-gray-200">
+            <li>
+              <div className="px-4 py-4 sm:px-6">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-indigo-600 truncate">
+                    System Maintenance Scheduled
+                  </p>
+                  <div className="ml-2 flex-shrink-0 flex">
+                    <p className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                      Upcoming
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-2 sm:flex sm:justify-between">
+                  <div className="sm:flex">
+                    <p className="flex items-center text-sm text-gray-500">
+                      Scheduled for October 15, 2023, 2:00 AM - 4:00 AM
+                    </p>
+                  </div>
+                  <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
+                    <p>Posted 2 days ago</p>
+                  </div>
+                </div>
+              </div>
+            </li>
+            <li>
+              <div className="px-4 py-4 sm:px-6">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-indigo-600 truncate">
+                    New Feature: Virtual Classroom Updates
+                  </p>
+                  <div className="ml-2 flex-shrink-0 flex">
+                    <p className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                      Released
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-2 sm:flex sm:justify-between">
+                  <div className="sm:flex">
+                    <p className="flex items-center text-sm text-gray-500">
+                      New whiteboard and breakout room features
+                    </p>
+                  </div>
+                  <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
+                    <p>Posted 5 days ago</p>
+                  </div>
+                </div>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>;
+};

@@ -1,0 +1,506 @@
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
+from typing import List, Optional
+from datetime import datetime
+from ..models.course import CourseModel
+from ..models.user import UserModel
+from ..middleware.auth import get_current_user, require_instructor
+from ..database.connection import get_database
+
+
+router = APIRouter(prefix="/api/courses", tags=["courses"])
+
+
+class CreateCourseRequest(BaseModel):
+    title: str
+    description: str
+    category: Optional[str] = None
+    duration: Optional[str] = None
+    level: Optional[str] = "Beginner"
+    thumbnail: Optional[str] = None
+    syllabus: Optional[List[dict]] = []
+    maxStudents: Optional[int] = None
+    status: Optional[str] = "draft"
+    startDate: Optional[str] = None
+    endDate: Optional[str] = None
+
+
+class UpdateCourseRequest(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    category: Optional[str] = None
+    duration: Optional[str] = None
+    level: Optional[str] = None
+    thumbnail: Optional[str] = None
+    syllabus: Optional[List[dict]] = None
+    maxStudents: Optional[int] = None
+    status: Optional[str] = None
+    startDate: Optional[str] = None
+    endDate: Optional[str] = None
+
+
+@router.post("/create")
+async def create_course(
+    request_data: CreateCourseRequest,
+    current_user: dict = Depends(require_instructor)
+):
+    """Create a new course (instructor only)"""
+    try:
+        # Prepare course data
+        course_data = {
+            "title": request_data.title,
+            "description": request_data.description,
+            "instructorId": current_user["id"],
+            "instructorName": f"{current_user['firstName']} {current_user['lastName']}",
+            "instructorEmail": current_user["email"],
+            "category": request_data.category,
+            "duration": request_data.duration,
+            "level": request_data.level,
+            "thumbnail": request_data.thumbnail,
+            "syllabus": request_data.syllabus or [],
+            "maxStudents": request_data.maxStudents,
+            "status": request_data.status or "draft",
+            "enrolledStudents": []
+        }
+        
+        # Handle date fields
+        if request_data.startDate:
+            try:
+                course_data["startDate"] = datetime.fromisoformat(request_data.startDate.replace('Z', '+00:00'))
+            except:
+                pass
+        
+        if request_data.endDate:
+            try:
+                course_data["endDate"] = datetime.fromisoformat(request_data.endDate.replace('Z', '+00:00'))
+            except:
+                pass
+        
+        # Create course
+        course = await CourseModel.create(course_data)
+        
+        # Convert datetime objects to ISO format strings
+        if "createdAt" in course and hasattr(course["createdAt"], "isoformat"):
+            course["createdAt"] = course["createdAt"].isoformat()
+        if "updatedAt" in course and hasattr(course["updatedAt"], "isoformat"):
+            course["updatedAt"] = course["updatedAt"].isoformat()
+        if "startDate" in course and course["startDate"] and hasattr(course["startDate"], "isoformat"):
+            course["startDate"] = course["startDate"].isoformat()
+        if "endDate" in course and course["endDate"] and hasattr(course["endDate"], "isoformat"):
+            course["endDate"] = course["endDate"].isoformat()
+        
+        return {
+            "success": True,
+            "message": "Course created successfully",
+            "course": course
+        }
+    except Exception as e:
+        print(f"Error creating course: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create course: {str(e)}"
+        )
+
+
+@router.get("/")
+async def get_all_courses():
+    """Get all published courses"""
+    try:
+        courses = await CourseModel.find_all({"status": "published"})
+        
+        # Convert datetime objects to ISO format strings
+        for course in courses:
+            if "createdAt" in course and hasattr(course["createdAt"], "isoformat"):
+                course["createdAt"] = course["createdAt"].isoformat()
+            if "updatedAt" in course and hasattr(course["updatedAt"], "isoformat"):
+                course["updatedAt"] = course["updatedAt"].isoformat()
+            if "startDate" in course and course.get("startDate") and hasattr(course["startDate"], "isoformat"):
+                course["startDate"] = course["startDate"].isoformat()
+            if "endDate" in course and course.get("endDate") and hasattr(course["endDate"], "isoformat"):
+                course["endDate"] = course["endDate"].isoformat()
+        
+        return {
+            "success": True,
+            "count": len(courses),
+            "courses": courses
+        }
+    except Exception as e:
+        print(f"Error fetching courses: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch courses"
+        )
+
+
+@router.get("/all")
+async def get_all_courses_including_drafts(current_user: dict = Depends(require_instructor)):
+    """Get all courses including drafts (instructor only)"""
+    try:
+        courses = await CourseModel.find_all()
+        
+        # Convert datetime objects
+        for course in courses:
+            if "createdAt" in course and hasattr(course["createdAt"], "isoformat"):
+                course["createdAt"] = course["createdAt"].isoformat()
+            if "updatedAt" in course and hasattr(course["updatedAt"], "isoformat"):
+                course["updatedAt"] = course["updatedAt"].isoformat()
+            if "startDate" in course and course.get("startDate") and hasattr(course["startDate"], "isoformat"):
+                course["startDate"] = course["startDate"].isoformat()
+            if "endDate" in course and course.get("endDate") and hasattr(course["endDate"], "isoformat"):
+                course["endDate"] = course["endDate"].isoformat()
+        
+        return {
+            "success": True,
+            "count": len(courses),
+            "courses": courses
+        }
+    except Exception as e:
+        print(f"Error fetching courses: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch courses"
+        )
+
+
+@router.get("/my-courses")
+async def get_my_courses(current_user: dict = Depends(require_instructor)):
+    """Get all courses created by the current instructor"""
+    try:
+        courses = await CourseModel.find_by_instructor(current_user["id"])
+        
+        # Convert datetime objects
+        for course in courses:
+            if "createdAt" in course and hasattr(course["createdAt"], "isoformat"):
+                course["createdAt"] = course["createdAt"].isoformat()
+            if "updatedAt" in course and hasattr(course["updatedAt"], "isoformat"):
+                course["updatedAt"] = course["updatedAt"].isoformat()
+            if "startDate" in course and course.get("startDate") and hasattr(course["startDate"], "isoformat"):
+                course["startDate"] = course["startDate"].isoformat()
+            if "endDate" in course and course.get("endDate") and hasattr(course["endDate"], "isoformat"):
+                course["endDate"] = course["endDate"].isoformat()
+        
+        return {
+            "success": True,
+            "count": len(courses),
+            "courses": courses
+        }
+    except Exception as e:
+        print(f"Error fetching instructor courses: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch courses"
+        )
+
+
+@router.get("/{course_id}")
+async def get_course_by_id(course_id: str):
+    """Get a specific course by ID"""
+    try:
+        course = await CourseModel.find_by_id(course_id)
+        if not course:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Course not found"
+            )
+        
+        # Convert datetime objects
+        if "createdAt" in course and hasattr(course["createdAt"], "isoformat"):
+            course["createdAt"] = course["createdAt"].isoformat()
+        if "updatedAt" in course and hasattr(course["updatedAt"], "isoformat"):
+            course["updatedAt"] = course["updatedAt"].isoformat()
+        if "startDate" in course and course.get("startDate") and hasattr(course["startDate"], "isoformat"):
+            course["startDate"] = course["startDate"].isoformat()
+        if "endDate" in course and course.get("endDate") and hasattr(course["endDate"], "isoformat"):
+            course["endDate"] = course["endDate"].isoformat()
+        
+        return {
+            "success": True,
+            "course": course
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error fetching course: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch course"
+        )
+
+
+@router.put("/{course_id}")
+async def update_course(
+    course_id: str,
+    request_data: UpdateCourseRequest,
+    current_user: dict = Depends(require_instructor)
+):
+    """Update a course (instructor only - can only update their own courses)"""
+    try:
+        # Check if course exists and belongs to instructor
+        course = await CourseModel.find_by_id(course_id)
+        if not course:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Course not found"
+            )
+        
+        if course["instructorId"] != current_user["id"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only update your own courses"
+            )
+        
+        # Prepare update data (only include fields that are provided)
+        update_data = {}
+        if request_data.title is not None:
+            update_data["title"] = request_data.title
+        if request_data.description is not None:
+            update_data["description"] = request_data.description
+        if request_data.category is not None:
+            update_data["category"] = request_data.category
+        if request_data.duration is not None:
+            update_data["duration"] = request_data.duration
+        if request_data.level is not None:
+            update_data["level"] = request_data.level
+        if request_data.thumbnail is not None:
+            update_data["thumbnail"] = request_data.thumbnail
+        if request_data.syllabus is not None:
+            update_data["syllabus"] = request_data.syllabus
+        if request_data.maxStudents is not None:
+            update_data["maxStudents"] = request_data.maxStudents
+        if request_data.status is not None:
+            update_data["status"] = request_data.status
+        
+        # Handle date fields
+        if request_data.startDate is not None:
+            try:
+                update_data["startDate"] = datetime.fromisoformat(request_data.startDate.replace('Z', '+00:00'))
+            except:
+                pass
+        
+        if request_data.endDate is not None:
+            try:
+                update_data["endDate"] = datetime.fromisoformat(request_data.endDate.replace('Z', '+00:00'))
+            except:
+                pass
+        
+        # Update course
+        updated_course = await CourseModel.update(course_id, update_data)
+        if not updated_course:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update course"
+            )
+        
+        # Convert datetime objects
+        if "createdAt" in updated_course and hasattr(updated_course["createdAt"], "isoformat"):
+            updated_course["createdAt"] = updated_course["createdAt"].isoformat()
+        if "updatedAt" in updated_course and hasattr(updated_course["updatedAt"], "isoformat"):
+            updated_course["updatedAt"] = updated_course["updatedAt"].isoformat()
+        if "startDate" in updated_course and updated_course.get("startDate") and hasattr(updated_course["startDate"], "isoformat"):
+            updated_course["startDate"] = updated_course["startDate"].isoformat()
+        if "endDate" in updated_course and updated_course.get("endDate") and hasattr(updated_course["endDate"], "isoformat"):
+            updated_course["endDate"] = updated_course["endDate"].isoformat()
+        
+        return {
+            "success": True,
+            "message": "Course updated successfully",
+            "course": updated_course
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error updating course: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update course"
+        )
+
+
+@router.delete("/{course_id}")
+async def delete_course(
+    course_id: str,
+    current_user: dict = Depends(require_instructor)
+):
+    """Delete a course (instructor only - can only delete their own courses)"""
+    try:
+        # Check if course exists and belongs to instructor
+        course = await CourseModel.find_by_id(course_id)
+        if not course:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Course not found"
+            )
+        
+        if course["instructorId"] != current_user["id"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only delete your own courses"
+            )
+        
+        # Delete course
+        success = await CourseModel.delete(course_id)
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to delete course"
+            )
+        
+        return {
+            "success": True,
+            "message": "Course deleted successfully"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error deleting course: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete course"
+        )
+
+
+@router.post("/{course_id}/enroll")
+async def enroll_in_course(
+    course_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Enroll current user in a course"""
+    try:
+        # Check if course exists
+        course = await CourseModel.find_by_id(course_id)
+        if not course:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Course not found"
+            )
+        
+        # Check if course is published
+        if course.get("status") != "published":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This course is not available for enrollment"
+            )
+        
+        # Check max students limit
+        max_students = course.get("maxStudents")
+        enrolled = course.get("enrolledStudents", [])
+        if max_students and len(enrolled) >= max_students:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Course is full"
+            )
+        
+        # Enroll student
+        updated_course = await CourseModel.enroll_student(course_id, current_user["id"])
+        if not updated_course:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to enroll in course"
+            )
+        
+        # Convert datetime objects
+        if "createdAt" in updated_course and hasattr(updated_course["createdAt"], "isoformat"):
+            updated_course["createdAt"] = updated_course["createdAt"].isoformat()
+        if "updatedAt" in updated_course and hasattr(updated_course["updatedAt"], "isoformat"):
+            updated_course["updatedAt"] = updated_course["updatedAt"].isoformat()
+        if "startDate" in updated_course and updated_course.get("startDate") and hasattr(updated_course["startDate"], "isoformat"):
+            updated_course["startDate"] = updated_course["startDate"].isoformat()
+        if "endDate" in updated_course and updated_course.get("endDate") and hasattr(updated_course["endDate"], "isoformat"):
+            updated_course["endDate"] = updated_course["endDate"].isoformat()
+        
+        return {
+            "success": True,
+            "message": "Successfully enrolled in course",
+            "course": updated_course
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error enrolling in course: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to enroll in course"
+        )
+
+
+@router.post("/{course_id}/unenroll")
+async def unenroll_from_course(
+    course_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Unenroll current user from a course"""
+    try:
+        # Check if course exists
+        course = await CourseModel.find_by_id(course_id)
+        if not course:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Course not found"
+            )
+        
+        # Unenroll student
+        updated_course = await CourseModel.unenroll_student(course_id, current_user["id"])
+        if not updated_course:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to unenroll from course"
+            )
+        
+        # Convert datetime objects
+        if "createdAt" in updated_course and hasattr(updated_course["createdAt"], "isoformat"):
+            updated_course["createdAt"] = updated_course["createdAt"].isoformat()
+        if "updatedAt" in updated_course and hasattr(updated_course["updatedAt"], "isoformat"):
+            updated_course["updatedAt"] = updated_course["updatedAt"].isoformat()
+        if "startDate" in updated_course and updated_course.get("startDate") and hasattr(updated_course["startDate"], "isoformat"):
+            updated_course["startDate"] = updated_course["startDate"].isoformat()
+        if "endDate" in updated_course and updated_course.get("endDate") and hasattr(updated_course["endDate"], "isoformat"):
+            updated_course["endDate"] = updated_course["endDate"].isoformat()
+        
+        return {
+            "success": True,
+            "message": "Successfully unenrolled from course",
+            "course": updated_course
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error unenrolling from course: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to unenroll from course"
+        )
+
+
+@router.get("/instructor/{instructor_id}")
+async def get_courses_by_instructor(instructor_id: str):
+    """Get all published courses by a specific instructor"""
+    try:
+        # Get all courses by instructor
+        courses = await CourseModel.find_by_instructor(instructor_id)
+        
+        # Filter only published courses
+        published_courses = [c for c in courses if c.get("status") == "published"]
+        
+        # Convert datetime objects
+        for course in published_courses:
+            if "createdAt" in course and hasattr(course["createdAt"], "isoformat"):
+                course["createdAt"] = course["createdAt"].isoformat()
+            if "updatedAt" in course and hasattr(course["updatedAt"], "isoformat"):
+                course["updatedAt"] = course["updatedAt"].isoformat()
+            if "startDate" in course and course.get("startDate") and hasattr(course["startDate"], "isoformat"):
+                course["startDate"] = course["startDate"].isoformat()
+            if "endDate" in course and course.get("endDate") and hasattr(course["endDate"], "isoformat"):
+                course["endDate"] = course["endDate"].isoformat()
+        
+        return {
+            "success": True,
+            "count": len(published_courses),
+            "courses": published_courses
+        }
+    except Exception as e:
+        print(f"Error fetching instructor courses: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch courses"
+        )
+
