@@ -54,11 +54,18 @@ auth_middleware = AuthMiddleware()
 
 @app.middleware("http")
 async def auth_middleware_wrapper(request: Request, call_next):
-    # Skip OPTIONS request (CORS preflight)
+    # Allow CORS preflight to pass through with headers
     if request.method == "OPTIONS":
-        return JSONResponse(status_code=200, content={"message": "preflight OK"})
-        
+        response = JSONResponse({"message": "preflight OK"})
+        response.headers["Access-Control-Allow-Origin"] = request.headers.get("origin", "*")
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "*"
+        return response
+
+    # Apply your normal authentication
     return await auth_middleware(request, call_next)
+
 
 
 
