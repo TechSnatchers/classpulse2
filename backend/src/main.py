@@ -4,56 +4,80 @@ from fastapi.responses import JSONResponse
 from datetime import datetime
 import os
 from contextlib import asynccontextmanager
+
 from src.middleware.auth import AuthMiddleware
 from src.database.connection import connect_to_mongo, close_mongo_connection
 
+
+# ---------------------------------------------
+# LIFESPAN
+# ---------------------------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await connect_to_mongo()
     yield
     await close_mongo_connection()
 
+
 app = FastAPI(lifespan=lifespan)
 
+
+# ---------------------------------------------
+# CORS (Zoom needs totally open CORS)
+# ---------------------------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://*.vercel.app",
-        "https://zoomlearningapp.de",
-        "https://www.zoomlearningapp.de",
-        "http://localhost:5173",
-    ],
+    allow_origins=["*"],        
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+
+# ---------------------------------------------
+# AUTH MIDDLEWARE (SKIP FOR ZOOM WEBHOOK)
+# ---------------------------------------------
 auth_middleware = AuthMiddleware()
 
 @app.middleware("http")
 async def auth_middleware_wrapper(request: Request, call_next):
-    # Bypass auth for Zoom webhook
+    
+    # Skip auth for Zoom Webhook
     if request.url.path.startswith("/api/zoom/webhook"):
         return await call_next(request)
+    
     return await auth_middleware(request, call_next)
 
+
+# ---------------------------------------------
+# SECURITY HEADERS (SKIP FOR ZOOM WEBHOOK)
+# ---------------------------------------------
 @app.middleware("http")
 async def security_headers_middleware(request: Request, call_next):
-    # Skip CSP for Zoom webhook
+
+    # Skip ALL security headers for Zoom webhook  
     if request.url.path.startswith("/api/zoom/webhook"):
         return await call_next(request)
 
+    # Normal routes → apply security headers
     response = await call_next(request)
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+
+    # ❗ DO NOT add CSP for webhook
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self' https:; "
+        "frame-ancestors 'self' https://*.zoom.us;"
+    )
     return response
 
-# ------------------------
-# Routes
-# ------------------------
+
+# ---------------------------------------------
+# IMPORT ROUTERS
+# ---------------------------------------------
 from src.routers import (
     auth, quiz, clustering, question,
     zoom_webhook, zoom_chatbot, course, live_question
@@ -68,7 +92,11 @@ app.include_router(zoom_chatbot.router)
 app.include_router(course.router)
 app.include_router(live_question.router)
 
+
+# ---------------------------------------------
+# HEALTH ROUTE
+# ---------------------------------------------
 @app.get("/health")
 async def health_check():
-    return {"status": "ok"}
+    return {"status": "ok", "time": datetime.now().isoformat()}
 
