@@ -27,7 +27,7 @@ app = FastAPI(lifespan=lifespan)
 # --------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # Zoom requires this
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -35,29 +35,30 @@ app.add_middleware(
 
 
 # --------------------------------------------------------
-# AUTH MIDDLEWARE (SKIP ONLY FOR ZOOM WEBHOOK)
+# AUTH MIDDLEWARE (ALLOW /api/zoom/events)
 # --------------------------------------------------------
 auth_middleware = AuthMiddleware()
 
 @app.middleware("http")
 async def auth_middleware_wrapper(request: Request, call_next):
 
-    if request.url.path.startswith("/api/zoom/webhook"):
+    # Allow Zoom webhooks
+    if request.url.path.startswith("/api/zoom/events"):
         return await call_next(request)
 
     return await auth_middleware(request, call_next)
 
 
 # --------------------------------------------------------
-# SECURITY HEADERS (DISABLE COMPLETELY FOR ZOOM WEBHOOK)
+# SECURITY HEADERS (DISABLE FOR /api/zoom/events)
 # --------------------------------------------------------
 @app.middleware("http")
 async def security_headers_middleware(request: Request, call_next):
 
     response = await call_next(request)
 
-    # ❗ REMOVE ALL security headers for Zoom webhook
-    if request.url.path.startswith("/api/zoom/webhook"):
+    # Disable security headers for Zoom webhook
+    if request.url.path.startswith("/api/zoom/events"):
         remove_headers = [
             "Strict-Transport-Security",
             "X-Content-Type-Options",
@@ -67,10 +68,11 @@ async def security_headers_middleware(request: Request, call_next):
             "Content-Security-Policy"
         ]
         for h in remove_headers:
-            response.headers.pop(h, None)
+            if h in response.headers:
+                del response.headers[h]
         return response
 
-    # Normal security headers for everything else
+    # Security headers for everything else
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
