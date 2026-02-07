@@ -1,0 +1,160 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Zoom Webhook Integration with API Gateway and Lambda'
+
+Parameters:
+  BackendApiUrl:
+    Type: String
+    Description: URL of your Python backend API
+    Default: 'https://your-backend-api.com'
+  
+  ZoomWebhookSecretToken:
+    Type: String
+    Description: Zoom webhook secret token (from Zoom Marketplace)
+    NoEcho: true
+
+Resources:
+  # Lambda Execution Role
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: BackendApiAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - execute-api:Invoke
+                Resource: '*'
+
+  # Lambda Function
+  ZoomWebhookLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: zoom-webhook-handler
+      Runtime: python3.11
+      Handler: zoom_webhook_handler.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          import json
+          import os
+          import requests
+          
+          BACKEND_API_URL = os.getenv("BACKEND_API_URL", "${BackendApiUrl}")
+          WEBHOOK_ENDPOINT = f"{BACKEND_API_URL}/api/zoom/webhook"
+          
+          def lambda_handler(event, context):
+              try:
+                  headers = event.get("headers", {})
+                  body = event.get("body", "{}")
+                  
+                  if isinstance(body, str):
+                      body_data = json.loads(body)
+                  else:
+                      body_data = body
+                  
+                  response = requests.post(
+                      WEBHOOK_ENDPOINT,
+                      json=body_data,
+                      headers={
+                          "Content-Type": "application/json",
+                          "x-zoom-signature": headers.get("x-zoom-signature", ""),
+                          "x-zoom-request-timestamp": headers.get("x-zoom-request-timestamp", "")
+                      },
+                      timeout=10
+                  )
+                  
+                  return {
+                      "statusCode": response.status_code,
+                      "headers": {"Content-Type": "application/json"},
+                      "body": json.dumps(response.json() if response.text else {"status": "received"})
+                  }
+              except Exception as e:
+                  return {
+                      "statusCode": 500,
+                      "headers": {"Content-Type": "application/json"},
+                      "body": json.dumps({"error": str(e)})
+                  }
+      Environment:
+        Variables:
+          BACKEND_API_URL: !Ref BackendApiUrl
+      Timeout: 30
+      MemorySize: 256
+
+  # API Gateway REST API
+  ZoomWebhookApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: zoom-webhook-api
+      Description: API Gateway for Zoom webhooks
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  # API Gateway Resource
+  WebhookResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ZoomWebhookApi
+      ParentId: !GetAtt ZoomWebhookApi.RootResourceId
+      PathPart: webhook
+
+  # POST Method
+  WebhookMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ZoomWebhookApi
+      ResourceId: !Ref WebhookResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${FunctionArn}/invocations
+          - FunctionArn: !GetAtt ZoomWebhookLambda.Arn
+
+  # Lambda Permission
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ZoomWebhookLambda
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub
+        - arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/*/*
+        - ApiId: !Ref ZoomWebhookApi
+
+  # API Gateway Deployment
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn: WebhookMethod
+    Properties:
+      RestApiId: !Ref ZoomWebhookApi
+      StageName: prod
+
+Outputs:
+  WebhookUrl:
+    Description: Zoom webhook endpoint URL
+    Value: !Sub
+      - https://${ApiId}.execute-api.${AWS::Region}.amazonaws.com/prod/webhook
+      - ApiId: !Ref ZoomWebhookApi
+    Export:
+      Name: ZoomWebhookUrl
+  
+  ApiId:
+    Description: API Gateway ID
+    Value: !Ref ZoomWebhookApi
+    Export:
+      Name: ZoomWebhookApiId
+

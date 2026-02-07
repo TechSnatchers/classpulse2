@@ -1,0 +1,30 @@
+# MongoDB Configuration
+MONGODB_URL=mongodb://localhost:27017
+# or for MongoDB Atlas:
+# MONGODB_URL=mongodb+srv://username:password@cluster.mongodb.net/
+DATABASE_NAME=learning_platform
+
+# Server Configuration
+PORT=3001
+FRONTEND_URL=http://localhost:5173
+
+# Domain Configuration
+DOMAIN=zoomlearningapp.de
+BASE_URL=https://zoomlearningapp.de
+CLOUDFRONT_URL=https://d1bj83s472gkb2.cloudfront.net
+
+# Zoom API Configuration (for Live Question Triggering)
+# Get these from https://marketplace.zoom.us/
+ZOOM_CLIENT_ID=your_zoom_client_id
+ZOOM_CLIENT_SECRET=your_zoom_client_secret
+ZOOM_ACCOUNT_ID=your_zoom_account_id
+ZOOM_CHATBOT_JID=your_chatbot_jid
+
+# Zoom Webhook Secret Token (for verifying webhooks)
+ZOOM_WEBHOOK_SECRET_TOKEN=your_webhook_secret_token
+
+# Email Configuration (using Resend - works on Railway/Vercel)
+# Get API Key from: https://resend.com/api-keys
+RESEND_API_KEY=re_xxxxxxxxxx
+FROM_EMAIL=Class Pulse <onboarding@resend.dev>
+
