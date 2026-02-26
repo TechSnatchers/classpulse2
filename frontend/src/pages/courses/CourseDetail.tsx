@@ -15,7 +15,7 @@ import { sessionService, type Session } from '../../services/sessionService';
 import { 
   CalendarIcon, ClockIcon, 
   FileTextIcon, DownloadIcon,
-  ActivityIcon, PlayIcon,
+  ActivityIcon,
   PlusIcon, XIcon, EditIcon, Loader2Icon
 } from 'lucide-react';
 
@@ -716,10 +716,11 @@ export const CourseDetail = () => {
                               </Button>
                             </Link>
                           )}
-                          <Link to={`/dashboard/sessions/${session.id}`}>
-                            <Button variant="primary" leftIcon={<PlayIcon className="h-4 w-4" />}>
-                              Join
-                            </Button>
+                          <Link
+                            to="/dashboard/sessions"
+                            className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+                          >
+                            Join from Meetings →
                           </Link>
                         </div>
                       </div>
@@ -767,8 +768,8 @@ export const CourseDetail = () => {
                               </Button>
                             </Link>
                           )}
-                          <Link to={`/dashboard/sessions/${session.id}`}>
-                            <Button variant="outline">View Recording</Button>
+                          <Link to={`/dashboard/sessions/${session.id}/report`}>
+                            <Button variant="outline">View Report</Button>
                           </Link>
                         </div>
                       </div>
