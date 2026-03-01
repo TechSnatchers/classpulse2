@@ -603,16 +603,26 @@ async def get_question_readiness(
 
         req = _compute_question_requirements(start_time, end_time, firstDelayMinutes, intervalMinutes)
 
-        # Count generic questions from current session
-        generic_count = await db.database.questions.count_documents({
-            "sessionId": session_id,
-            "questionType": {"$in": ["generic", None]},
-        })
-        generic_no_type = await db.database.questions.count_documents({
-            "sessionId": session_id,
-            "questionType": {"$exists": False},
-        })
-        generic_count += generic_no_type
+        # Count generic questions from current session + all instructor sessions
+        instructor_id = session.get("instructorId")
+        generic_filter = {
+            "questionType": {"$nin": ["cluster"]},
+        }
+        if instructor_id:
+            generic_filter["$or"] = [
+                {"sessionId": session_id},
+                {"instructorId": instructor_id},
+                {"createdBy": instructor_id},
+            ]
+        else:
+            generic_filter["sessionId"] = session_id
+        generic_count = await db.database.questions.count_documents(generic_filter)
+        if not instructor_id:
+            generic_no_type = await db.database.questions.count_documents({
+                "sessionId": session_id,
+                "questionType": {"$exists": False},
+            })
+            generic_count += generic_no_type
 
         # Always include cluster questions from the current session
         cluster_qs = []
@@ -921,14 +931,19 @@ async def start_session(
                 needed_per_cluster = req["clusterNeededPerGroup"]
 
                 if req["totalRounds"] > 0:
-                    generic_count = await db.database.questions.count_documents({
-                        "sessionId": session_id,
-                        "questionType": {"$in": ["generic", None]},
-                    })
-                    generic_count += await db.database.questions.count_documents({
-                        "sessionId": session_id,
-                        "questionType": {"$exists": False},
-                    })
+                    val_instructor_id = session.get("instructorId")
+                    val_generic_filter = {
+                        "questionType": {"$nin": ["cluster"]},
+                    }
+                    if val_instructor_id:
+                        val_generic_filter["$or"] = [
+                            {"sessionId": session_id},
+                            {"instructorId": val_instructor_id},
+                            {"createdBy": val_instructor_id},
+                        ]
+                    else:
+                        val_generic_filter["sessionId"] = session_id
+                    generic_count = await db.database.questions.count_documents(val_generic_filter)
 
                     cluster_qs = []
                     async for q in db.database.questions.find({

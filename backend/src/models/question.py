@@ -197,12 +197,12 @@ class Question:
 
         # --- 1. Current session's own questions ---
         questions: List[Dict[str, Any]] = []
+        seen_ids: set = set()
         async for q in database.questions.find({"sessionId": session_id}):
-            q["id"] = str(q["_id"])
+            qid = str(q["_id"])
+            q["id"] = qid
+            seen_ids.add(qid)
             questions.append(q)
-        if questions:
-            print(f"📝 Fallback: Found {len(questions)} questions for current session {session_id}")
-            return questions, "current_session"
 
         # Resolve instructor_id / course_id from session doc if not provided
         session_doc = None
@@ -216,25 +216,29 @@ class Question:
             if not course_id:
                 course_id = session_doc.get("courseId")
 
-        # --- 2. ALL questions created by this instructor (every session + general) ---
+        # --- 2. Merge generic questions from ALL instructor sessions ---
         if instructor_id:
-            seen_ids: set = set()
-            query = {"$or": [{"instructorId": instructor_id}, {"createdBy": instructor_id}]}
+            query = {
+                "$or": [{"instructorId": instructor_id}, {"createdBy": instructor_id}],
+                "questionType": {"$nin": ["cluster"]},
+            }
             async for q in database.questions.find(query):
                 qid = str(q["_id"])
                 if qid not in seen_ids:
                     q["id"] = qid
                     seen_ids.add(qid)
                     questions.append(q)
-            if questions:
-                generic_count = sum(
-                    1 for q in questions
-                    if q.get("questionType", "generic") != "cluster"
-                )
-                cluster_count = len(questions) - generic_count
-                print(f"📝 Fallback: Found {len(questions)} total instructor questions "
-                      f"(generic: {generic_count}, cluster: {cluster_count}) across all sessions")
-                return questions, "all_instructor_questions"
+
+        if questions:
+            generic_count = sum(
+                1 for q in questions
+                if q.get("questionType", "generic") != "cluster"
+            )
+            cluster_count = len(questions) - generic_count
+            source = "current_session" if not instructor_id else "current_session+all_generic"
+            print(f"📝 Found {len(questions)} questions (generic: {generic_count}, "
+                  f"cluster: {cluster_count}) source: {source}")
+            return questions, source
 
         # --- 3. Ultimate fallback: all questions in DB ---
         async for q in database.questions.find({}):
