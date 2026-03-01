@@ -65,7 +65,17 @@ export const InstructorDashboard = () => {
     };
     loadSessions();
     const interval = setInterval(loadSessions, 30000);
-    return () => clearInterval(interval);
+
+    // Reload immediately when instructor switches back from Zoom tab
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') loadSessions();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, []);
 
   // ================================
@@ -179,16 +189,30 @@ export const InstructorDashboard = () => {
       }
     };
 
-    ws.onerror = (err) => console.error("Instructor WS error:", err);
+    ws.onerror = () => {};
+
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let intentionallyClosed = false;
+
     ws.onclose = () => {
       if (instructorWsRef.current?.sessionId === sessionId) {
         instructorWsRef.current = null;
       }
       console.log('🔌 Instructor WebSocket closed');
+      if (!intentionallyClosed && sessionId) {
+        reconnectTimer = setTimeout(() => {
+          const newWs = new WebSocket(wsUrl);
+          newWs.onopen = ws.onopen;
+          newWs.onmessage = ws.onmessage;
+          newWs.onerror = ws.onerror;
+          newWs.onclose = ws.onclose;
+        }, 5000);
+      }
     };
 
-    // Cleanup: close only on unmount or when sessionId changes
     return () => {
+      intentionallyClosed = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
       if (instructorWsRef.current?.sessionId === sessionId) {
         instructorWsRef.current.ws.close();
         instructorWsRef.current = null;

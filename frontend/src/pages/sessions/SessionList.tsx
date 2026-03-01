@@ -148,7 +148,19 @@ export const SessionList = () => {
 
     // Poll every 30s as fallback in case WebSocket or Zoom webhook misses events
     const interval = setInterval(loadSessions, 30000);
-    return () => clearInterval(interval);
+
+    // Reload immediately when instructor switches back from Zoom tab
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        loadSessions();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [user?.id, isInstructor, instructorSessionId]);
 
   // ---------------------------------------------------
@@ -214,65 +226,74 @@ export const SessionList = () => {
 
   // ---------------------------------------------------
   // ⭐ WEBSOCKET LISTENER FOR REAL-TIME SESSION STATUS UPDATES
+  //    with auto-reconnect so background-tab disconnects recover
   // ---------------------------------------------------
   useEffect(() => {
     if (!user?.id) return;
 
-    const wsBase = import.meta.env.VITE_WS_URL || import.meta.env.VITE_API_URL?.replace('/api', '') || 'ws://localhost:8000';
-    const wsUrl = `${wsBase}/ws/global/${user.id}`;
-    
-    const ws = new WebSocket(wsUrl);
-    
-    ws.onopen = () => {
-      console.log('✅ Connected to global WebSocket for session updates');
-    };
-    
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log('📬 Session update received:', data);
-        
-        // Handle session started event
-        if (data.type === 'session_started') {
-          console.log('🟢 Session started:', data.sessionId || data.zoomMeetingId);
-          setSessions(prev => prev.map(s => 
-            (s.id === data.sessionId || s.zoomMeetingId === data.zoomMeetingId || s.zoomMeetingId === data.sessionId)
-              ? { ...s, status: 'live' as const }
-              : s
-          ));
-          toast.success('Meeting is now live!');
-        }
-        
-        // Handle meeting ended event
-        if (data.type === 'meeting_ended') {
-          console.log('🔴 Meeting ended:', data.sessionId || data.zoomMeetingId);
-          setSessions(prev => prev.map(s => 
-            (s.id === data.sessionId || s.zoomMeetingId === data.zoomMeetingId)
-              ? { ...s, status: 'completed' as const }
-              : s
-          ));
-          toast.info('Meeting has ended');
-          
-          // Clear starting state if this session was being started
-          if (startingSessionId === data.sessionId || startingSessionId === data.zoomMeetingId) {
-            setStartingSessionId(null);
+    let ws: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let closed = false;
+
+    const connect = () => {
+      if (closed) return;
+      const wsBase = import.meta.env.VITE_WS_URL || import.meta.env.VITE_API_URL?.replace('/api', '') || 'ws://localhost:8000';
+      const wsUrl = `${wsBase}/ws/global/${user.id}`;
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        console.log('✅ Connected to global WebSocket for session updates');
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log('📬 Session update received:', data);
+
+          if (data.type === 'session_started') {
+            console.log('🟢 Session started:', data.sessionId || data.zoomMeetingId);
+            setSessions(prev => prev.map(s =>
+              (s.id === data.sessionId || s.zoomMeetingId === data.zoomMeetingId || s.zoomMeetingId === data.sessionId)
+                ? { ...s, status: 'live' as const }
+                : s
+            ));
+            toast.success('Meeting is now live!');
           }
+
+          if (data.type === 'meeting_ended') {
+            console.log('🔴 Meeting ended:', data.sessionId || data.zoomMeetingId);
+            setSessions(prev => prev.map(s =>
+              (s.id === data.sessionId || String(s.zoomMeetingId) === String(data.zoomMeetingId))
+                ? { ...s, status: 'completed' as const }
+                : s
+            ));
+            toast.info('Meeting has ended');
+
+            if (startingSessionId === data.sessionId || startingSessionId === data.zoomMeetingId) {
+              setStartingSessionId(null);
+            }
+          }
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error);
         }
-      } catch (error) {
-        console.error('Error parsing WebSocket message:', error);
-      }
+      };
+
+      ws.onerror = () => {};
+
+      ws.onclose = () => {
+        console.log('🔌 WebSocket closed, will reconnect in 5s');
+        if (!closed) {
+          reconnectTimer = setTimeout(connect, 5000);
+        }
+      };
     };
-    
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
-    
-    ws.onclose = () => {
-      console.log('🔌 WebSocket closed');
-    };
-    
+
+    connect();
+
     return () => {
-      ws.close();
+      closed = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      ws?.close();
     };
   }, [user?.id]);
 
