@@ -529,7 +529,7 @@ export const StudentReports = () => {
                   </h3>
                   {attendanceSummary && (
                     <div className="text-sm text-gray-500 dark:text-gray-400">
-                      Total: {attendanceSummary.totalSessionsAttended} sessions • {attendanceSummary.totalMinutesAttended} minutes
+                      Total: {attendanceSummary.totalSessionsAttended} sessions
                     </div>
                   )}
                 </div>
