@@ -116,26 +116,26 @@ async def update_profile(
 # -------------------------------------------------------------------
 
 async def _student_stats(student_id: str, student_email: str) -> dict:
-    courses_enrolled = await db.database.course_enrollments.count_documents(
-        {"studentId": student_id}
+    courses_enrolled = await db.database.courses.count_documents(
+        {"enrolledStudents": student_id}
     )
 
     sessions_attended = await db.database.session_participants.count_documents(
         {"studentId": student_id}
     )
 
-    total_questions = await db.database.question_assignments.count_documents(
+    total_questions = await db.database.quiz_answers.count_documents(
         {"studentId": student_id}
     )
-    correct_answers = await db.database.question_assignments.count_documents(
+    correct_answers = await db.database.quiz_answers.count_documents(
         {"studentId": student_id, "isCorrect": True}
     )
 
     if total_questions == 0:
-        total_questions = await db.database.quiz_answers.count_documents(
+        total_questions = await db.database.question_assignments.count_documents(
             {"studentId": student_id}
         )
-        correct_answers = await db.database.quiz_answers.count_documents(
+        correct_answers = await db.database.question_assignments.count_documents(
             {"studentId": student_id, "isCorrect": True}
         )
 
@@ -181,7 +181,7 @@ async def _instructor_stats(instructor_id: str) -> dict:
                 total_students.add(sid)
 
     total_questions = await db.database.questions.count_documents(
-        {"instructorId": instructor_id}
+        {"$or": [{"instructorId": instructor_id}, {"createdBy": instructor_id}]}
     )
 
     return {
