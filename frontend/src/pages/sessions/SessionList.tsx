@@ -144,11 +144,11 @@ export const SessionList = () => {
       }
     };
 
-    // Initial load only - no polling
     loadSessions();
 
-    // Sessions will be updated via WebSocket events (session_started, meeting_ended, etc.)
-    // No polling interval - updates are event-driven
+    // Poll every 30s as fallback in case WebSocket or Zoom webhook misses events
+    const interval = setInterval(loadSessions, 30000);
+    return () => clearInterval(interval);
   }, [user?.id, isInstructor, instructorSessionId]);
 
   // ---------------------------------------------------

@@ -64,6 +64,8 @@ export const InstructorDashboard = () => {
       }
     };
     loadSessions();
+    const interval = setInterval(loadSessions, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   // ================================
