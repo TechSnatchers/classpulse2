@@ -360,7 +360,7 @@ export const StudentReports = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            My Reports
+            Session Reports
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             View your personal attendance, quiz scores, and session history
@@ -380,9 +380,9 @@ export const StudentReports = () => {
       {/* Tabs */}
       <div className="flex flex-wrap gap-2 border-b border-gray-200 dark:border-gray-700 pb-2">
         {[
-          { id: 'stored', label: 'My Reports', icon: FileTextIcon },
-          { id: 'attendance', label: 'My Attendance', icon: ClockIcon },
-          { id: 'quiz', label: 'My Quiz Scores', icon: FileTextIcon },
+          { id: 'stored', label: 'Session Reports', icon: FileTextIcon },
+          { id: 'attendance', label: 'Attendance', icon: ClockIcon },
+          { id: 'quiz', label: 'Quiz Scores', icon: FileTextIcon },
           { id: 'history', label: 'Session History', icon: BookOpenIcon }
         ].map((tab) => (
           <button
